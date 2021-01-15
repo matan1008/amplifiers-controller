@@ -29,7 +29,7 @@ passive_state_response_data_struct = Struct(
     'input' / Int16sl,
     'vswr' / IfThenElse(
         this.reflected != this.output,
-        Computed(calc_vswr(this.output, this.reflected)),
+        Computed(lambda this: round(calc_vswr(this.output, this.reflected), 3)),
         Computed(lambda ctx: -1)),
     'rest' / GreedyBytes
 )
