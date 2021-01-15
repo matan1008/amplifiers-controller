@@ -1,14 +1,12 @@
 import asyncio
+from functools import lru_cache
 
-from fastapi import FastAPI, WebSocket, Form, Request
+from fastapi import FastAPI, WebSocket, Form, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from . import config
 from .amplifier import Amplifier
-
-AMPLIFIERS_IP_ADDRESS = ('192.168.1.100', '192.168.1.101', '192.168.1.102')
-AMPLIFIERS_NAMES = ['900 A', '900 B', '1800']
-AMPLIFIER_CONNECTION_TIMEOUT = 0.2  # In seconds
 
 app = FastAPI()
 app.mount('/static', StaticFiles(directory='amplifiers_controller/static'), name='static')
@@ -18,12 +16,19 @@ connected_amplifiers = []
 reports_queue = asyncio.Queue()
 
 
+@lru_cache()
+def get_settings():
+    return config.Settings()
+
+
 @app.on_event('startup')
 async def startup_event():
     # Try connecting the amplifiers. if connected, starting fetching reports.
-    for i, ip in enumerate(AMPLIFIERS_IP_ADDRESS):
+    settings = get_settings()
+    settings.run = True
+    for i, ip in enumerate(settings.amplifiers_ip_addresses):
         try:
-            amplifier = await asyncio.wait_for(Amplifier.create_amplifier(i, ip), AMPLIFIER_CONNECTION_TIMEOUT)
+            amplifier = await asyncio.wait_for(Amplifier.create_amplifier(i, ip), settings.amplifier_connection_timeout)
         except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
             continue
         connected_amplifiers.append(amplifier)
@@ -31,9 +36,9 @@ async def startup_event():
 
 
 @app.get('/')
-async def get(request: Request):
+async def get(request: Request, settings: config.Settings = Depends(get_settings)):
     return templates.TemplateResponse('index.html',
-                                      {'request': request, 'amplifiers_names': AMPLIFIERS_NAMES})
+                                      {'request': request, 'amplifiers_names': settings.amplifiers_names})
 
 
 @app.post('/configure/{amplifier_index}')
@@ -45,7 +50,7 @@ async def configure_amplifier(amplifier_index: int, output: int = Form(...)):
 
 
 @app.websocket('/ws')
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, settings: config.Settings = Depends(get_settings)):
     await websocket.accept()
-    while True:
+    while settings.run:
         await websocket.send_json(await reports_queue.get())

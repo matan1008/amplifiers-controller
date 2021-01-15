@@ -4,3 +4,4 @@ aiofiles
 python-multipart
 jinja2
 construct
+pydantic

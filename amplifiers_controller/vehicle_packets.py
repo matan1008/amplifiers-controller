@@ -16,6 +16,11 @@ def crc16_xmodem(data):
     return Int16ub.build((msb << 8) + lsb)
 
 
+def calc_vswr(output, reflected):
+    return_loss = output - reflected
+    return (1 + (10 ** (-return_loss / 20))) / (1 - (10 ** (-return_loss / 20)))
+
+
 passive_state_response_data_struct = Struct(
     Const(2, Int16ul),
     'output' / Int16ul,
@@ -23,8 +28,8 @@ passive_state_response_data_struct = Struct(
     'temperature' / Int16ul,
     'input' / Int16sl,
     'vswr' / IfThenElse(
-        (this.reflected / this.output) != 1,
-        Computed((1 + (this.reflected / this.output)) / (1 - (this.reflected / this.output))),
+        this.reflected != this.output,
+        Computed(calc_vswr(this.output, this.reflected)),
         Computed(lambda ctx: -1)),
     'rest' / GreedyBytes
 )
@@ -32,7 +37,7 @@ passive_state_response_data_struct = Struct(
 active_status_response_data_struct = Struct(
     Const(2, Int16ul),
     'is_on' / Flag,
-    'unknown_1' / Bytes(5),
+    'unknown_1' / Padding(5),
     'requested_output' / Int16ul,
     'unknown_2' / GreedyBytes
 )

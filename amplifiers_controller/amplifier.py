@@ -38,7 +38,7 @@ class Amplifier:
                     'output': passive_data.output,
                     'input': passive_data.input,
                     'reflected': passive_data.reflected,
-                    'vswr': passive_data.vswr,
+                    'vswr': round(passive_data.vswr, 3),
                     'temperature': passive_data.temperature,
                     'requested_output': active_data.requested_output,
                 }
