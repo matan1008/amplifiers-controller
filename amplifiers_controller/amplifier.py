@@ -1,5 +1,7 @@
 import asyncio
 
+import construct
+
 from .vehicle_packets import *
 
 
@@ -28,10 +30,14 @@ class Amplifier:
         :param asyncio.Queue reports_queue: Queue to put the fetched reports in.
         """
         while True:
-            parsed = await self._request_amplifier(PASSIVE_STATE_REQUEST_DATA)
-            passive_data = passive_state_response_data_struct.parse(parsed)
-            parsed = await self._request_amplifier(ACTIVE_STATUS_REQUEST_DATA)
-            active_data = active_status_response_data_struct.parse(parsed)
+            try:
+                parsed = await self._request_amplifier(PASSIVE_STATE_REQUEST_DATA)
+                passive_data = passive_state_response_data_struct.parse(parsed)
+                parsed = await self._request_amplifier(ACTIVE_STATUS_REQUEST_DATA)
+                active_data = active_status_response_data_struct.parse(parsed)
+            except (ConnectionError, construct.ConstructError):
+                # Probably connection released
+                return
             await reports_queue.put({
                 'index': self.index,
                 'report': {
